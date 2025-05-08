@@ -2,8 +2,9 @@ import cv2 as cv
 import numpy as np
 import time
 import base64
-import picamera
 import csv
+import os
+import glob
 # from fourier_processors import perform_fourier_transform_and_compare_to_reference_fourier_image, process_image_fourier
 from arduino_sender import open_serial_connection, close_serial_connection, send_data, command_to_send_to_arduino, find_port, receive_data
 from perspective_processor import perform_realtime_perspective_transform, process_image_perspective
@@ -16,6 +17,26 @@ from similarity_NMI import compare_images
 # from remove_reflection import remove_reflection_on_frame, remove_reflection
 from light_to_dark import perform_brightness_thresholding, perform_brightness_thresholding_on_image
 from Bayes_class_decision import predict_group, get_parameters
+
+def extract_frames_from_video(video_path, output_folder):
+    cap = cv.VideoCapture(video_path)
+    frame_count = 0
+
+    if not cap.isOpened():
+        print(f"Cannot open video: {video_path}")
+        return
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        output_path = os.path.join(output_folder, f"frame_{frame_count:05d}.jpg")
+        cv.imwrite(output_path, frame)
+        frame_count += 1
+
+    cap.release()
+    print(f"Extracted {frame_count} frames to {output_folder}")
+
 
 # Main Run: Nhận tín hiệu từ Redis, biến đổi fourier và so sánh từng frame lấy từ Camera với ảnh sạch, rồi chuyển lệnh đến Arduino
 def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
@@ -37,14 +58,20 @@ def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
 
     # Turn on module camera raspberry
     # Set video resolution
-    with picamera.PiCamera() as camera:
-        camera.resolution = (480, 240)
-        camera.framerate = 10
+    def process_video_from_folder(video_folder_path, ser):
+        # Get list of image files in the folder (assuming they are sorted by name)
+        video_file_path = os.path.join(video_folder_path, "input_video.mp4")
+        extract_frames_from_video(video_file_path, video_folder_path)
 
-        # Start the video preview
-        camera.start_preview()
-        width = camera.resolution[0]
-        height = camera.resolution[1]
+        image_files = sorted(glob.glob(os.path.join(video_folder_path, '*.jpg')))
+
+        if not image_files:
+            print(f"No image files found in {video_folder_path}")
+            return
+
+        # Set the same resolution as in the original code
+        width = 480
+        height = 240
 
         # Initialize variables for Kalman Filter
         kalman = cv.KalmanFilter(1, 1, 0)
@@ -57,7 +84,7 @@ def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
 
         frame_rate_limit = 10  # Giới hạn số khung hình mỗi giây
         frame_interval = 1 / frame_rate_limit
-        last_frame_time = time.time()
+        last_frame_time = time.time() - frame_interval
         timestamps = []
         values = []
         first_frame_time = time.time()
@@ -67,16 +94,18 @@ def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
         csvfile = open('data_test.csv', 'w', newline='')
         csvwriter = csv.writer(csvfile)
         csvwriter.writerow(['Timestamps', 'Values'])
-
-        while True:
+        # Loop through image files instead of capturing from camera
+        for image_path in image_files:
             current_time = time.time()
             elapsed_time = current_time - last_frame_time
             if elapsed_time >= frame_interval:
                 last_frame_time = current_time
+                # Read frame from file instead of camera
+                frame = cv.imread(image_path)
 
-                stream = np.empty((camera.resolution[1] * camera.resolution[0] * 3), dtype=np.uint8)
-                camera.capture(stream, 'bgr')
-                frame = stream.reshape((camera.resolution[1], camera.resolution[0], 3))
+                # Resize frame to match original resolution if needed
+                if frame.shape[1] != width or frame.shape[0] != height:
+                    frame = cv.resize(frame, (width, height))
 
                 camera_control = receive_signal(redis_conn, "camera")
                 if camera_control == "on":
@@ -128,11 +157,15 @@ def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
                     print(f"NMI_Score: {NMI_Score_filtered:.2f}")
                     kalman.statePost = kalman_corrected
                     print(f"TheCommand: {TheCommand}")
+                processing_time = time.time() - current_time
+                sleep_time = max(0, frame_interval - processing_time)
+                time.sleep(sleep_time)
 
-        camera.stop_preview()
-        camera.close()
+        csvfile.close()
         close_serial_connection(ser)
         disconnect_redis(redis_conn)
+
+    process_video_from_folder("video_frames", ser)
 
 if __name__ == '__main__':
     redis_keys = ["move"]

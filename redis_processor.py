@@ -27,7 +27,7 @@ def getch():
 
 # mở cổng kết nối với redis
 def connect_redis(RedisHost, RedisPort, RedisPassword):
-    r = redis.Redis(RedisHost, RedisPort, db=0, password=RedisPassword)
+    r = redis.Redis(RedisHost, RedisPort, db=0, password=RedisPassword, ssl=True)
     return r
 
 # gởi tín hiệu đến redis
@@ -41,12 +41,12 @@ def send_signal(r, key, value):
 # nhận mảng tín hiệu từ redis
 def receive_signal(r, key):
     value = r.get(key)
-    value = value.decode('utf-8')
-    if value is None:
-        print(f"Nothing from key: {key}")
-    else:
+    if value is not None:
         print(f"Received data from key: {key}")
-    return value
+        return value.decode('utf-8')
+    else:
+        print(f"Nothing from key: {key}")
+        return None
 
 def disconnect_redis(r):
     r.close()
