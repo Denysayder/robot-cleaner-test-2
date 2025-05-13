@@ -30,7 +30,7 @@ from similarity_NMI import compare_images
 remove_reflection_on_frame, remove_reflection
 from light_to_dark import perform_brightness_thresholding,
 perform_brightness_thresholding_on_image
-from Bayes_class_decision import predict_group,
+from ml.Bayes_class_decision import predict_group,
 get_parameters
 #Main Run: Nhận tín hiệu từ Redis, biến đổi fourier và so
 sánh từng frame lấy từ Camera với ảnh sạch, rồi chuyển lệnh

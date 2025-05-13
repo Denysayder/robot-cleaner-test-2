@@ -2,14 +2,14 @@ import redis
 import cv2
 import numpy as np
 import base64
-from arduino_sender import send_to_arduino, \
+from core.arduino_sender import send_to_arduino, \
     open_serial_connection, send_data, close_serial_connection, \
     find_port
 
 import termios
 import sys
 import tty
-import config_secret
+import config.config_secret as config_secret
 
 RedisHost = config_secret.RedisHost
 RedisPort = config_secret.RedisPort

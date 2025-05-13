@@ -40,17 +40,17 @@ def predict_group(value, mean_clean, std_clean, mean_dirty, std_dirty):
 if __name__ == '__main__':
     new_value = 0.67
     # Sử dụng hàm predict_group để dự đoán nhóm của số mới
-    clean_file = 'data_100_150.csv'
-    dirty_file = 'data_100_150_dirty.csv'
-    clean_parameters_file = 'clean_parameters.csv'
-    dirty_parameters_file = 'dirty_parameters.csv'
+    clean_file = 'data/processed/data_100_150.csv'
+    dirty_file = 'data/processed/data_100_150_dirty.csv'
+    clean_parameters_file = 'data/raw/clean_parameters.csv'
+    dirty_parameters_file = 'data/raw/dirty_parameters.csv'
 
     estimate_gaussian_parameters(clean_file, clean_parameters_file)
     estimate_gaussian_parameters(dirty_file, dirty_parameters_file)
 
     # Get the parameters for the Bayes Classifier
-    mean_clean, std_clean = get_parameters('clean_parameters.csv')
-    mean_dirty, std_dirty = get_parameters('dirty_parameters.csv')
+    mean_clean, std_clean = get_parameters('data/raw/clean_parameters.csv')
+    mean_dirty, std_dirty = get_parameters('data/raw/dirty_parameters.csv')
 
     predicted_group = predict_group(new_value, 'base_command', mean_clean, std_clean, mean_dirty, std_dirty)
     print("Number {} is belong to group : {}".format(new_value, predicted_group))

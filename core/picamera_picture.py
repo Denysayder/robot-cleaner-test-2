@@ -25,7 +25,7 @@ def show_camera_preview():
             #wait key
             key = cv2.waitKey(1)
             if key == ord('q'):
-                image_path="/home/snetel/Desktop/GammaImage Process/image/webcam_image5.jpg"
+                image_path="image/webcam_image5.jpg"
                 cv2.imwrite(image_path, frame)
                 print("already taken picture: ",image_path)
                 break
