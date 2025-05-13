@@ -1,0 +1,5 @@
+[wokwi]
+version = 1
+firmware = 'build/from_PDF_try2.ino.with_bootloader.hex'
+elf = 'build/from_PDF_try2.ino.elf'
+rfc2217ServerPort  = 4000

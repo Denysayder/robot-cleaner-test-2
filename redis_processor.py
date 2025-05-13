@@ -9,10 +9,11 @@ from arduino_sender import send_to_arduino, \
 import termios
 import sys
 import tty
+import config_secret
 
-RedisHost = ''
-RedisPort = 17060
-RedisPassword = ''
+RedisHost = config_secret.RedisHost
+RedisPort = config_secret.RedisPort
+RedisPassword = config_secret.RedisPassword
 
 # hàm bấm nút để ngừng
 def getch():
@@ -27,7 +28,7 @@ def getch():
 
 # mở cổng kết nối với redis
 def connect_redis(RedisHost, RedisPort, RedisPassword):
-    r = redis.Redis(RedisHost, RedisPort, db=0, password=RedisPassword, ssl=True)
+    r = redis.Redis(RedisHost, RedisPort, db=0, password=RedisPassword, ssl=True, decode_responses=True)
     return r
 
 # gởi tín hiệu đến redis
@@ -43,7 +44,7 @@ def receive_signal(r, key):
     value = r.get(key)
     if value is not None:
         print(f"Received data from key: {key}")
-        return value.decode('utf-8')
+        return value
     else:
         print(f"Nothing from key: {key}")
         return None

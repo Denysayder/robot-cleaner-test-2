@@ -17,6 +17,8 @@ from similarity_NMI import compare_images
 # from remove_reflection import remove_reflection_on_frame, remove_reflection
 from light_to_dark import perform_brightness_thresholding, perform_brightness_thresholding_on_image
 from Bayes_class_decision import predict_group, get_parameters
+from serial import serial_for_url
+import config_secret
 
 def extract_frames_from_video(video_path, output_folder):
     cap = cv.VideoCapture(video_path)
@@ -41,15 +43,48 @@ def extract_frames_from_video(video_path, output_folder):
 # Main Run: Nhận tín hiệu từ Redis, biến đổi fourier và so sánh từng frame lấy từ Camera với ảnh sạch, rồi chuyển lệnh đến Arduino
 def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
     # Open Redis Connection
-    RedisHost = ''
-    RedisPort = 17060
-    RedisPassword = ''
+    RedisHost = config_secret.RedisHost
+    RedisPort = config_secret.RedisPort
+    RedisPassword = config_secret.RedisPassword
     redis_conn = connect_redis(RedisHost, RedisPort, RedisPassword)
 
     # Open Serial connection
     # receive_data=""
-    arduino_port = find_port()
-    ser = open_serial_connection(arduino_port, baud_rate)
+    # arduino_port = find_port()
+    # ser = open_serial_connection(arduino_port, baud_rate)
+        # --- Arduino in Wokwi: TCP‑UART на 4000 ---
+    ARDUINO_URL = 'rfc2217://localhost:4000'  # порт задан в wokwi.toml
+    try:
+        ser = serial_for_url(ARDUINO_URL, baudrate=baud_rate, timeout=0.005)
+        print(f"[Arduino] connected via {ARDUINO_URL}")
+    except Exception as exc:
+        print(f"[Arduino] connection failed: {exc}")
+        ser = None
+            # ---------- Читаем CSV‑телеметрию ----------
+
+    def poll_arduino_and_store():
+        """Раз в цикл читаем строку CSV и кладём значения в Redis."""
+        if ser is None:
+            return
+        raw = ser.readline().decode(errors='ignore').strip()
+        if not raw:
+            return  # таймаут
+        try:
+            work, temp, s1, s2, s3, s4, water, batt, moved = raw.split(',')
+        except ValueError:
+            print(f"[Arduino] bad line: {raw}")
+            return
+        redis_conn.hset('telemetry', mapping={
+            'workTime'   : work,
+            'temperature': temp,
+            'sensor1'    : s1,
+            'sensor2'    : s2,
+            'sensor3'    : s3,
+            'sensor4'    : s4,
+            'water'      : water,
+            'battery'    : batt,
+            'moved'      : moved
+        })
 
     # Load the reference image for comparison
     load_reference_image = cv.imread(reference_image, cv.IMREAD_GRAYSCALE)
@@ -97,6 +132,7 @@ def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
         # Loop through image files instead of capturing from camera
         for image_path in image_files:
             current_time = time.time()
+            poll_arduino_and_store()
             elapsed_time = current_time - last_frame_time
             if elapsed_time >= frame_interval:
                 last_frame_time = current_time
@@ -111,7 +147,7 @@ def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
                 if camera_control == "on":
                     _, img_encoded = cv.imencode('.jpg', frame)
                     img_bytes = img_encoded.tobytes()
-                    img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+                    img_base64 = base64.b64encode(img_bytes)
                     chunk_size = 60000
                     chunks = [img_base64[i:i + chunk_size] for i in range(0, len(img_base64), chunk_size)]
                     flagged_chunks = [f"{i + 1}_{chunk}" for i, chunk in enumerate(chunks)]
@@ -155,6 +191,11 @@ def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
                     ser = send_data(ser, baud_rate, TheCommand, 1)
 
                     print(f"NMI_Score: {NMI_Score_filtered:.2f}")
+                    telemetry = redis_conn.hgetall('telemetry')
+                    print(f"T={telemetry.get('temperature')}°C "
+                          f"Batt={telemetry.get('battery')}% "
+                          f"H₂O={telemetry.get('water')}%")
+
                     kalman.statePost = kalman_corrected
                     print(f"TheCommand: {TheCommand}")
                 processing_time = time.time() - current_time
