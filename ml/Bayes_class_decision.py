@@ -52,5 +52,5 @@ if __name__ == '__main__':
     mean_clean, std_clean = get_parameters('data/raw/clean_parameters.csv')
     mean_dirty, std_dirty = get_parameters('data/raw/dirty_parameters.csv')
 
-    predicted_group = predict_group(new_value, 'base_command', mean_clean, std_clean, mean_dirty, std_dirty)
+    predicted_group = predict_group(new_value, mean_clean, std_clean, mean_dirty, std_dirty)
     print("Number {} is belong to group : {}".format(new_value, predicted_group))
