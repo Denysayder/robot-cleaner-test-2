@@ -17,9 +17,8 @@ def perform_brightness_thresholding_on_image(image_file, brightness_threshold):
     cv2.imwrite(output_file, processed_image)
     return output_file
 
-# Example usage:
 if __main__ == '__main__':
-    frame = cv2.imread('input_frame.jpg')  # Replace 'input_frame.jpg' with the path to your input frame
+    frame = cv2.imread('input_frame.jpg')
     threshold_value = 200
     result_frame = perform_brightness_thresholding(frame, threshold_value)
     cv2.imshow('Result Frame', result_frame)

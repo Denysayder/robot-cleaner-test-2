@@ -5,16 +5,12 @@ import base64
 import csv
 import os
 import glob
-# from fourier_processors import perform_fourier_transform_and_compare_to_reference_fourier_image, process_image_fourier
 from core.arduino_sender import open_serial_connection, close_serial_connection, send_data, command_to_send_to_arduino, find_port, receive_data
-from processing.perspective_processor import perform_realtime_perspective_transform, process_image_perspective
 from core.redis_processor import connect_redis, receive_signal, disconnect_redis, send_signal
 from processing.histogram_equalizer import histogram_equalization, histogram_equalization_on_frame
-# from remove_reflection import remove_reflection, remove_reflection_on_frame
 from processing.adjust_brightness import adjust_brightness_on_frame, adjust_brightness_on_image
 from processing.correlation import extract_spectrum, extract_spectrum_on_frame, spectrum_to_see
 from processing.similarity_NMI import compare_images
-# from remove_reflection import remove_reflection_on_frame, remove_reflection
 from processing.light_to_dark import perform_brightness_thresholding, perform_brightness_thresholding_on_image
 from ml.Bayes_class_decision import predict_group, get_parameters
 from serial import serial_for_url
@@ -40,27 +36,19 @@ def extract_frames_from_video(video_path, output_folder):
     print(f"Extracted {frame_count} frames to {output_folder}")
 
 
-# Main Run: Nhận tín hiệu từ Redis, biến đổi fourier và so sánh từng frame lấy từ Camera với ảnh sạch, rồi chuyển lệnh đến Arduino
 def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
-    # Open Redis Connection
     RedisHost = config_secret.RedisHost
     RedisPort = config_secret.RedisPort
     RedisPassword = config_secret.RedisPassword
     redis_conn = connect_redis(RedisHost, RedisPort, RedisPassword)
 
-    # Open Serial connection
-    # receive_data=""
-    # arduino_port = find_port()
-    # ser = open_serial_connection(arduino_port, baud_rate)
-        # --- Arduino in Wokwi: TCP‑UART на 4000 ---
-    ARDUINO_URL = 'rfc2217://localhost:4000'  # порт задан в wokwi.toml
+    ARDUINO_URL = 'rfc2217://localhost:4000'
     try:
         ser = serial_for_url(ARDUINO_URL, baudrate=baud_rate, timeout=0.005)
         print(f"[Arduino] connected via {ARDUINO_URL}")
     except Exception as exc:
         print(f"[Arduino] connection failed: {exc}")
         ser = None
-            # ---------- Читаем CSV‑телеметрию ----------
 
     def poll_arduino_and_store():
         """Раз в цикл читаем строку CSV и кладём значения в Redis."""
@@ -68,7 +56,7 @@ def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
             return
         raw = ser.readline().decode(errors='ignore').strip()
         if not raw:
-            return  # таймаут
+            return
         try:
             work, temp, s1, s2, s3, s4, water, batt, moved = raw.split(',')
         except ValueError:
@@ -86,15 +74,11 @@ def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
             'moved'      : moved
         })
 
-    # Load the reference image for comparison
     load_reference_image = cv.imread(reference_image, cv.IMREAD_GRAYSCALE)
     reference_fourier_frame = spectrum_to_see(load_reference_image)
     cv.imwrite("image/fourier_image.jpg", reference_fourier_frame)
 
-    # Turn on module camera raspberry
-    # Set video resolution
     def process_video_from_folder(video_folder_path, ser):
-        # Get list of image files in the folder (assuming they are sorted by name)
         video_file_path = os.path.join(video_folder_path, "input_video.mp4")
         extract_frames_from_video(video_file_path, video_folder_path)
 
@@ -104,11 +88,9 @@ def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
             print(f"No image files found in {video_folder_path}")
             return
 
-        # Set the same resolution as in the original code
         width = 480
         height = 240
 
-        # Initialize variables for Kalman Filter
         kalman = cv.KalmanFilter(1, 1, 0)
         kalman.transitionMatrix = np.array([[1]], dtype=np.float32)
         kalman.measurementMatrix = np.array([[1]], dtype=np.float32)
@@ -117,7 +99,7 @@ def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
         kalman.errorCovPost = np.array([[1]], dtype=np.float32)
         kalman.statePost = np.array([[0]], dtype=np.float32)
 
-        frame_rate_limit = 10  # Giới hạn số khung hình mỗi giây
+        frame_rate_limit = 10
         frame_interval = 1 / frame_rate_limit
         last_frame_time = time.time() - frame_interval
         timestamps = []
@@ -129,17 +111,14 @@ def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
         csvfile = open('data/processed/data_test.csv', 'w', newline='')
         csvwriter = csv.writer(csvfile)
         csvwriter.writerow(['Timestamps', 'Values'])
-        # Loop through image files instead of capturing from camera
         for image_path in image_files:
             current_time = time.time()
             poll_arduino_and_store()
             elapsed_time = current_time - last_frame_time
             if elapsed_time >= frame_interval:
                 last_frame_time = current_time
-                # Read frame from file instead of camera
                 frame = cv.imread(image_path)
 
-                # Resize frame to match original resolution if needed
                 if frame.shape[1] != width or frame.shape[0] != height:
                     frame = cv.resize(frame, (width, height))
 
@@ -156,16 +135,12 @@ def Main_Run(reference_image, baud_rate, redis_receive_keys, arduino_data_keys):
                     for flagged_chunk in flagged_chunks:
                         redis_conn.set('video', flagged_chunk)
 
-                    # Apply brightness adjustment
                     brightness_adjusted_frame = adjust_brightness_on_frame(frame, 100)
 
-                    # Turn the part too white to black
                     perform_brightness_thresholding_frame = perform_brightness_thresholding(brightness_adjusted_frame, 150)
 
-                    # Apply histogram equalizer to the frame
                     histograme_equalized_frame = histogram_equalization_on_frame(perform_brightness_thresholding_frame)
 
-                    # Apply extract_spectrum
                     fourier_frame = spectrum_to_see(histograme_equalized_frame)
 
                     NMI_Score = compare_images(reference_fourier_frame, fourier_frame)
