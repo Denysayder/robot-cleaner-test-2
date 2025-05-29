@@ -10,10 +10,13 @@ import termios
 import sys
 import tty
 import config.config_secret as config_secret
+import os
 
 RedisHost = config_secret.RedisHost
 RedisPort = config_secret.RedisPort
 RedisPassword = config_secret.RedisPassword
+user_id = os.getenv("USER_ID") or "demo"
+key = lambda name: f"user:{user_id}:{name}"
 
 def getch():
     fd = sys.stdin.fileno()
@@ -29,21 +32,20 @@ def connect_redis(RedisHost, RedisPort, RedisPassword):
     r = redis.Redis(RedisHost, RedisPort, db=0, password=RedisPassword, ssl=True, decode_responses=True)
     return r
 
-def send_signal(r, key, value):
+def send_signal(r, redis_key, value):
     if r.ping():
-        r.set(key, value)
-        print(f"Tín hiệu đã được gửi thành công đến key: {key}.")
+        r.set(redis_key, value)
+        print(f"Tín hiệu đã được gửi thành công đến key: {key(name)}.")
     else:
         print("Không có kết nối đến Redis. Tín hiệu không được gửi.")
 
-def receive_signal(r, key):
-    value = r.get(key)
+def receive_signal(r, redis_key):      # ← имя параметра теперь очевидно
+    value = r.get(redis_key)           # ① НЕ оборачиваем его снова
     if value is not None:
-        print(f"Received data from key: {key}")
-        return value
+        print(f"Received data from key: {redis_key}")
     else:
-        print(f"Nothing from key: {key}")
-        return None
+        print(f"Nothing from key: {redis_key}")
+    return value
 
 def disconnect_redis(r):
     r.close()
@@ -70,7 +72,7 @@ def receive_realtime_frame():
         char = getch()
         if char == 'q':
             break
-        frame_chunk = receive_signal(redis_conn, "video")
+        frame_chunk = receive_signal(redis_conn, key("video"))
         parts = frame_chunk.split("_")
         chunk_prefix = int(parts[0])
         data = parts[1]

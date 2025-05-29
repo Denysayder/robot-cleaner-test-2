@@ -22,7 +22,7 @@ def find_port():
         print("Port:", port.device)
         print("Description:", port.description)
         print()
-        if 'Arduino' or 'ACM' in port.description:
+        if 'Arduino' in port.description or 'ACM' in port.description:
             arduino_port = port.device
             print("Arduino is connected to", arduino_port)
             break
@@ -34,8 +34,16 @@ def open_serial_connection(arduino_port, baud_rate):
     if arduino_port is None:
         return None
     try:
-        ser = serial.Serial(arduino_port, baud_rate, exclusive=True)
+        ser = serial.Serial(
+            arduino_port,
+            baud_rate,
+            exclusive=True,
+            timeout=0.005,
+            dsrdtr=False,  # <-- предотвращает сброс Arduino
+            rtscts=False
+        )
         time.sleep(2)
+        ser.reset_input_buffer()
         return ser
     except serial.SerialException as e:
         print("An error occurred while opening the serial connection:", e)
@@ -44,9 +52,7 @@ def open_serial_connection(arduino_port, baud_rate):
 def send_data(ser, baudrate, data, channel=0):
     if ser is None:
         print("Connection to Arduino is not established yet.")
-        arduino_port = find_port()
-        ser = open_serial_connection(arduino_port, baudrate)
-        return ser
+        return
     try:
         if isinstance(data, bytes):
             data_bytes = data
@@ -59,7 +65,6 @@ def send_data(ser, baudrate, data, channel=0):
         data_with_newline = str(channel).encode() + str(":").encode() + data_bytes + b'#'
         ser.write(data_with_newline)
         print(f"Data: {data} has been sent to channel {channel}")
-        return ser
     except serial.SerialException as e:
         print("An error occurred while sending data:", e)
 
@@ -93,7 +98,7 @@ def close_serial_connection(ser):
 def send_to_arduino(data, baud_rate, channel=1):
     arduino_port = find_port()
     ser = open_serial_connection(arduino_port, baud_rate)
-    send_data(ser, data, channel)
+    send_data(ser, baud_rate, data, channel)
     close_serial_connection(ser)
 
 def receive_from_arduino(baud_rate):

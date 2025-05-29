@@ -1,3 +1,101 @@
+Я пишу диплом на тему "Інформаційна система моніторингу та автоматизованого очищення сонячних панелей роботизованими пристроями". Із минулих чатів ти знаєш що включає мій диплом. Мені треба написати записку, перші два розділи якої складається з наступних пунктів:
+
+ВСТУП
+1. АНАЛІЗ ПРЕДМЕТНОЇ ОБЛАСТІ ТА ПОСТАНОВКА ЗАДАЧ
+1.1 Актуальність проблеми
+1.2
+1.2 Аналіз існуючих технічних і програмних рішень (показати 2-3 рішення)
+1.2.1 Ecoppia T4
+1.2.2 SolarCleano F1
+1.2.3 BladeRanger Pleco
+1.4 Формулювання вимог до інформаційної системи
+Висновки до розділу 1
+
+2. Опис структури системи (до 15 сторінок)
+2.1 Вибір архітектури системи (кресленик)
+2.2 Вибір мови програмування
+	2.2.1 JavaScript
+	2.2.2 C#
+	2.2.3 Python
+2.3 Вибір фреймворку
+2.3.1 Django
+2.3.2 FastAPI
+2.3.3 Flask
+2.4 Вибір бази даних
+	2.4.1 PostgreSQL
+	2.4.2 MongoDB
+	2.4.3 MySQL
+2.5 Redis
+2.6 Wokwi
+2.7 Вибір середовища розробки
+2.8 Інформаційне забезпечення
+	2.8.1 Вхідні дані
+	2.8.2 Вихідні дані
+Висновки до розділу 2
+
+3. Реалізація системи
+3.1 Архітектура та середовище розгортання
+3.2 Алгоритм оцінки ступеня забруднення
+3.2.1 Попередня обробка (корекція яскравості, фільтр Калмана)
+3.2.2 Формування спектра Фур’є та обчислення NMI
+3.2.3 Байєсівська класифікація «Clean / Dirty»
+3.3 Backend-сервер і API
+3.4 Алгоритми аналізу та управління
+3.5 Клієнтський інтерфейс
+Висновки до розділу 3
+
+
+
+Тому розпиши ТІЛЬКИ І ТІЛЬКИ пункт "3.2.1 Попередня обробка (корекція яскравості, фільтр Калмана) ". Не використовуй таблиці, бажано тільки текст. Обсяг 300 слів! Якщо раніше ми все загально описували, то тут вже дуже конкретно треба розписати що саме конкретно реалізовано! Нижче ти можеш знайти код в якому реалізовано алгоритми, але я від тебе хочу не опису кожної строки коду, а опису самого алгоритму і як він реалізується.
+
+adjust_brightness.py
+import cv2
+import numpy as np
+
+def adjust_brightness_on_frame(frame, target_brightness):
+    avg_brightness = np.mean(frame)
+    adjustment_ratio = target_brightness / avg_brightness
+    adjusted = np.clip(frame, None, 150)
+    adjusted = cv2.convertScaleAbs(frame, alpha=adjustment_ratio)
+    return adjusted
+
+def adjust_brightness_on_image(image_file, target_brightness):
+    output_file = "image/brightness_adjusted_image.jpg"
+    image = cv2.imread(image_file)
+    adjusted = adjust_brightness_on_frame(image, target_brightness)
+    cv2.imwrite(output_file, adjusted)
+    return output_file
+
+def main():
+    cap = cv2.VideoCapture(0)
+    target_brightness = 100
+    if not cap.isOpened():
+        print("Không thể mở webcam.")
+        return
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+            print("Không thể đọc khung hình.")
+        adjusted_frame = adjust_brightness_on_frame(frame, target_brightness)
+        avg_brightness_original = np.mean(frame)
+        avg_brightness_adjusted = np.mean(adjusted_frame)
+        cv2.putText(frame, f'Original: {avg_brightness_original}', (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.putText(adjusted_frame, f'Adjusted: {avg_brightness_adjusted}', (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.imshow('Original', frame)
+        cv2.imshow('Adjusted', adjusted_frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == '__main__':
+    main()
+
+realtime_comparison.py:
 import cv2 as cv
 import numpy as np
 import time
